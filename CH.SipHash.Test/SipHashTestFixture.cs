@@ -83,24 +83,35 @@ namespace CH.SipHash.Test
             var k1 = BitConverter.ToUInt64(key, 8);
 
             var maxlen = _vectors.Length;
-
-            var ok = true;
-            for (var i = 0; i < maxlen; ++i)
+            foreach (
+                var f in
+                    new Func<byte[], ulong, ulong, ulong>[]
+                        {
+                            SipHash.SipHash_2_4,
+                            SipHash.SipHash_2_4_UlongCast,
+                            SipHash.SipHash_2_4_UlongCast_ForcedInline,
+                            SipHash.SipHash_2_4_ForcedInline
+                        }
+                )
             {
-                var inba = new byte[i];
-                for (var j = 0; j < i; ++j) inba[j] = (byte) j;
-                var hash = SipHash.SipHash_2_4(inba, k0, k1);
-                var hashBytes = BitConverter.GetBytes(hash);
-                var expected = _vectors[i];
+                var ok = true;
+                for (var i = 0; i < maxlen; ++i)
+                {
+                    var inba = new byte[i];
+                    for (var j = 0; j < i; ++j) inba[j] = (byte) j;
+                    var hash = f(inba, k0, k1);
+                    var hashBytes = BitConverter.GetBytes(hash);
+                    var expected = _vectors[i];
 
-                for (var j = 0; j < expected.Length; ++j)
-                    if (expected[j] != hashBytes[j])
-                    {
-                        Debug.WriteLine("fail at vector[{0}][{1}]", i, j);
-                        ok = false;
-                    }
+                    for (var j = 0; j < expected.Length; ++j)
+                        if (expected[j] != hashBytes[j])
+                        {
+                            Debug.WriteLine("fail at vector[{0}][{1}]", i, j);
+                            ok = false;
+                        }
+                }
+                Assert.IsTrue(ok);
             }
-            Assert.IsTrue(ok);
         }
 
         [Test]
@@ -112,19 +123,28 @@ namespace CH.SipHash.Test
             var k0 = BitConverter.ToUInt64(key, 0);
             var k1 = BitConverter.ToUInt64(key, 8);
 
-            var inba = new byte[1023];
+            var inba = new byte[1024];
             for (var j = 0; j < inba.Length; ++j) inba[j] = (byte) (j & 0xff);
 
+            const int times = 256000;
+
             var sb24 = Stopwatch.StartNew();
-            const int times = 100000;
             for (var i = 0; i < times; ++i) SipHash.SipHash_2_4(inba, k0, k1);
             sb24.Stop();
 
-            var sb24f = Stopwatch.StartNew();
+            var sb24c = Stopwatch.StartNew();
             for (var i = 0; i < times; ++i) SipHash.SipHash_2_4_UlongCast(inba, k0, k1);
+            sb24c.Stop();
+
+            var sb24cf = Stopwatch.StartNew();
+            for (var i = 0; i < times; ++i) SipHash.SipHash_2_4_UlongCast_ForcedInline(inba, k0, k1);
+            sb24cf.Stop();
+
+            var sb24f = Stopwatch.StartNew();
+            for (var i = 0; i < times; ++i) SipHash.SipHash_2_4_ForcedInline(inba, k0, k1);
             sb24f.Stop();
 
-            Console.WriteLine("{0} {1}", sb24.ElapsedMilliseconds, sb24f.ElapsedMilliseconds);
+            Console.WriteLine("SipHash_2_4:{0}ms SipHash_2_4_UlongCast:{1}ms SipHash_2_4_UlongCast_ForcedInline:{2}ms SipHash_2_4_ForcedInline:{3}ms ", sb24.ElapsedMilliseconds, sb24c.ElapsedMilliseconds, sb24cf.ElapsedMilliseconds,sb24f.ElapsedMilliseconds);
         }
     }
 }
